@@ -67,3 +67,11 @@ extern "C" fn state() {
 
    msg::reply(tamagotchi, 0).expect("Failed to share state");
 }
+
+#[no_mangle]
+// It returns the Hash of metadata.
+// .metahash is generating automatically while you are using build.rs
+extern "C" fn metahash() {
+   let metahash: [u8; 32] = include!("../.metahash");
+   msg::reply(metahash, 0).expect("Failed to share metahash");
+}
