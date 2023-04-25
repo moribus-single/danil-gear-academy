@@ -2,7 +2,7 @@
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use gstd::{msg, ActorId, prelude::*};
-use escrow_io::{EscrowAction, EscrowEvent, EscrowState, InitEscrow};
+use escrow_io::*;
 
 #[derive(Default, Encode, Decode, TypeInfo)]
 pub struct Escrow {
@@ -32,19 +32,26 @@ impl Escrow {
 
         self.state = EscrowState::AwaitingDelivery;
         msg::reply(EscrowEvent::FundsDeposited, 0)
-            .expect("Error in reply `EscrowEvent::FundsDeposited");
+            .expect("Error in reply `EscrowEvent::FundsDeposited`");
     }
+
     fn confirm_delivery(&mut self) {
-        assert_eq!(
-            self.state,
-            EscrowState::AwaitingDelivery,
-            "State must be `AwaitingDelivery"
-        );
         assert_eq!(
             msg::source(),
             self.buyer,
             "The message sender must be a buyer"
         );
+        assert_eq!(
+            self.state,
+            EscrowState::AwaitingDelivery,
+            "State must be `AwaitingDelivery"
+        );
+
+        msg::send(self.seller, "FUNDS", self.price).expect("Unable to send funds to the seller");
+        self.state = EscrowState::Closed;
+
+        msg::reply(EscrowEvent::DeliveryConfirmed, 0)
+            .expect("Failed to reply `EscrowEvent::DeliveryConfirmed`");
     }
 }
 

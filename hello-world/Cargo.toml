@@ -9,6 +9,7 @@ edition = "2021"
 gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], branch = "testnet" }
 parity-scale-codec = { version = "3", default-features = false }
 scale-info = { version = "2", default-features = false }
+hello-world-io = { path = "hello-world-io" }
 
 [build-dependencies]
 gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", branch = "testnet" }

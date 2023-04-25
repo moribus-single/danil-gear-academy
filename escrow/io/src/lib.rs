@@ -43,7 +43,7 @@ pub enum EscrowState {
 
 impl Default for EscrowState {
    fn default() -> Self {
-       Self::AwaitingPayment
+      Self::AwaitingPayment
    }
 }
 
