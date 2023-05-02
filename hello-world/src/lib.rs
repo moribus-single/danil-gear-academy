@@ -146,8 +146,7 @@ extern "C" fn handle() {
 #[no_mangle]
 extern "C" fn init() {
     let owner = msg::source();
-    let name = String::from_utf8(
-        msg::load_bytes().expect("Can't load tamagotchi name")
+    let name: String =  msg::load().expect("Can't load tamagotchi name");
     ).expect("Can't decode to String");
     let date_of_birth = block_timestamp();
 
