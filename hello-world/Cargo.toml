@@ -6,14 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], branch = "testnet" }
+gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], branch = "academy-v0.1.0" }
 parity-scale-codec = { version = "3", default-features = false }
 scale-info = { version = "2", default-features = false }
 hello-world-io = { path = "hello-world-io" }
 
 [build-dependencies]
-gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", branch = "testnet" }
+gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", branch = "academy-v0.1.0" }
 hello-world-io = { path = "hello-world-io" }
 
 [dev-dependencies]
-gtest = { git = "https://github.com/gear-tech/gear.git", branch = "testnet" }
+gtest = { git = "https://github.com/gear-tech/gear.git", branch = "academy-v0.1.0" }

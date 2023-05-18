@@ -4,36 +4,66 @@ use hello_world_io::*;
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
 
-#[derive(Default, Encode, Decode, TypeInfo)]
-pub struct Tamagotchi {
-   pub owner: ActorId,
-   pub name: String,
-   pub date_of_birth: u64,
-
-   pub fed: u16,
-   pub happy: u16,
-   pub rested: u16,
-
-   pub last_ate: u32,
-   pub last_had_fun: u32,
-   pub last_slept: u32
+pub trait NFTamagotchi {
+    fn transfer(&mut self, actor_id: ActorId);
+    fn approve(&mut self, actor_id: ActorId);
+    fn revoke_approval(&mut self);
+    fn feed(&mut self);
+    fn play(&mut self);
+    fn sleep(&mut self);
+    fn name(&mut self);
+    fn age(&mut self);
 }
 
-impl Tamagotchi {
+impl NFTamagotchi for Tamagotchi {
+    fn transfer(&mut self, actor_id: ActorId) {
+        let sender = msg::source();
+        assert!(
+            sender == self.owner || self.allowed_account == Some(sender),
+            "Only owner or allowed account can transfer ownership"
+        );
+        self.owner = actor_id;
+
+        msg::reply(
+            TmgEvent::Transfer(actor_id), 
+            0
+        ).expect("Failed to share the TmgEvent");
+    }
+
+    fn approve(&mut self, actor_id: ActorId) {
+        assert!(msg::source() == self.owner, "Only owner can approve");
+        self.allowed_account = Some(actor_id);
+
+        msg::reply(
+            TmgEvent::Approve(actor_id),
+            0
+        ).expect("Failed to share the TmgEvent");
+    }
+
+    fn revoke_approval(&mut self) {
+        assert!(msg::source() == self.owner, "Only owner can revoke approval");
+        self.allowed_account = None;
+
+        msg::reply(
+            TmgEvent::RevokeApproval,
+            0
+        ).expect("Failed to share the TmgEvent");
+    }
+
     fn feed(&mut self) {
         assert!(msg::source() == self.owner, "Only owner can feed the tamagotchi");
         assert!(self.fed < 7000, "Tamagotchi not enough hungry");
 
         // calculating and normalizing hunger level
-        let hunger_level: u32 = (block_height() - self.last_ate) * HUNGER_PER_BLOCK;
-        let normalized_hunger_level: u16 = if hunger_level > MAX_FED {
+        let hunger_level = (block_height() as u64 - self.fed_block) * HUNGER_PER_BLOCK;
+        let normalized_hunger_level = if hunger_level > MAX_FED {
             MAX_FED
         } else {
-            hunger_level as u16
+            hunger_level
         };
         
         // calculating current hunger level
-        let curr_feed_level = if self.fed > normalized_hunger_level {
+        let curr_feed_level: u64 = if self.fed > normalized_hunger_level {
             self.fed - normalized_hunger_level
         } else {
             0
@@ -41,39 +71,39 @@ impl Tamagotchi {
 
         // updating the state
         self.fed = curr_feed_level + FILL_PER_FEED;
-        self.last_ate = block_height();
+        self.fed_block = block_height() as u64;
 
         msg::reply(
-            TmgEvent::Feed(self.fed),
+            TmgEvent::Fed,
             0
         ).expect("Failed to share TmgEvent");
     }
 
     fn play(&mut self) {
         assert!(msg::source() == self.owner, "Only owner can feed the tamagotchi");
-        assert!(self.happy < 7000, "Tamagotchi entertained enough");
+        assert!(self.entertained < 7000, "Tamagotchi entertained enough");
 
         // calculating and normalizing bored level
-        let bored_level: u32 = (block_height() - self.last_had_fun) * BOREDOM_PER_BLOCK;
-        let normalized_bored_level: u16 = if bored_level > MAX_HAPPY {
+        let bored_level: u64 = (block_height() as u64 - self.entertained_block) * BOREDOM_PER_BLOCK;
+        let normalized_bored_level: u64 = if bored_level > MAX_HAPPY {
             MAX_HAPPY
         } else {
-            bored_level as u16
+            bored_level as u64
         };
 
         // calculating current happy level
-        let curr_happy_level = if self.happy > normalized_bored_level {
-            self.happy - normalized_bored_level
+        let curr_happy_level = if self.entertained > normalized_bored_level {
+            self.entertained - normalized_bored_level
         } else {
             0
         };
 
         // updating the state
-        self.happy = curr_happy_level + FILL_PER_ENTERTAINMENT;
-        self.last_had_fun = block_height();
+        self.entertained = curr_happy_level + FILL_PER_ENTERTAINMENT;
+        self.entertained_block = block_height() as u64;
 
         msg::reply(
-            TmgEvent::Play(self.happy),
+            TmgEvent::Entertained,
             0
         ).expect("Failed to share TmgEvent");
     }
@@ -83,11 +113,11 @@ impl Tamagotchi {
         assert!(self.rested < 7000, "Tamagotchi don't wanna to sleep");
 
         // calculating and normalizing energy loss
-        let energy_loss: u32 = (block_height() - self.last_slept) * ENERGY_PER_BLOCK;
-        let normalized_energy_loss: u16 = if energy_loss > MAX_RESTED {
+        let energy_loss: u64 = (block_height() as u64 - self.rested_block) * ENERGY_PER_BLOCK;
+        let normalized_energy_loss: u64 = if energy_loss > MAX_RESTED {
             MAX_RESTED
         } else {
-            energy_loss as u16
+            energy_loss as u64
         };
 
         // calculating current rested level
@@ -99,10 +129,10 @@ impl Tamagotchi {
 
         // updating the state
         self.rested = curr_rested_level + FILL_PER_SLEEP;
-        self.last_slept = block_height();
+        self.rested_block = block_height() as u64;
 
         msg::reply(
-            TmgEvent::Sleep(self.rested), 
+            TmgEvent::Slept, 
             0
         ).expect("Failed to share TmgEvent");
     }
@@ -128,7 +158,6 @@ extern "C" fn handle() {
     let tamagotchi = unsafe {
         TAMAGOTCHI.as_mut().expect("The contract is not initialized")
     };
-    let age: u64 = block_timestamp() - tamagotchi.date_of_birth;
 
     // loading TmgAction
     let action: TmgAction = msg::load().expect("Error in loading TmgAction");
@@ -139,37 +168,42 @@ extern "C" fn handle() {
         TmgAction::Name => tamagotchi.name(),
         TmgAction::Feed => tamagotchi.feed(),
         TmgAction::Play => tamagotchi.play(),
-        TmgAction::Sleep => tamagotchi.sleep()
+        TmgAction::Sleep => tamagotchi.sleep(),
+        TmgAction::RevokeApproval => tamagotchi.revoke_approval(),
+        TmgAction::Approve(actor_id) => tamagotchi.approve(actor_id),
+        TmgAction::Transfer(actor_id) => tamagotchi.transfer(actor_id)
     };
 }
 
 #[no_mangle]
 extern "C" fn init() {
     let owner = msg::source();
-    let name: String =  msg::load().expect("Can't load tamagotchi name");
-    ).expect("Can't decode to String");
+    let name: String = String::from_utf8(
+        msg::load_bytes().expect("Can't load tamagotchi name")
+    ).expect("Can't decode tamagotchi name");
     let date_of_birth = block_timestamp();
 
     let fed = 500;
-    let happy = 500;
+    let entertained = 500; 
     let rested = 500;
 
-    let last_ate = block_height();
-    let last_had_fun = block_height();
-    let last_slept = block_height();
-
+    let fed_block = block_height() as u64;
+    let entertained_block = block_height() as u64;
+    let rested_block = block_height() as u64;
+    let allowed_account: Option<ActorId> = None;
 
     unsafe { 
         TAMAGOTCHI = Some(Tamagotchi{
-            owner,
             name,
             date_of_birth,
+            owner,
             fed,
-            happy,
+            fed_block, 
+            entertained,
+            entertained_block,
             rested,
-            last_ate, // last_ate
-            last_had_fun,
-            last_slept
+            rested_block,
+            allowed_account
         });
     };
 
