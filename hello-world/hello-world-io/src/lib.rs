@@ -8,9 +8,9 @@ use scale_info::TypeInfo;
 pub struct ProgramMetadata;
 
 impl Metadata for ProgramMetadata {
-   type Init = InOut<String, ()>;
-   type Reply = InOut<(), ()>;
-   type Others = InOut<(), ()>;
+   type Init = In<String>;
+   type Reply = ();
+   type Others = ();
    type Signal = ();
    type Handle = InOut<TmgAction, TmgEvent>;
    type State = Tamagotchi;
