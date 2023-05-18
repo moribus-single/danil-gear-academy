@@ -4,23 +4,18 @@ use hello_world_io::*;
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
 
-#[derive(Default, Encode, Decode, TypeInfo)]
-pub struct Tamagotchi {
-   pub name: String,
-   pub date_of_birth: u64,
-   pub owner: ActorId,
-
-   pub fed: u64,
-   pub fed_block: u64,
-   pub entertained: u64,
-   pub entertained_block: u64,
-   pub rested: u64,
-   pub rested_block: u64,
-
-   pub allowed_account: Option<ActorId>,
+pub trait NFTamagotchi {
+    fn transfer(&mut self, actor_id: ActorId);
+    fn approve(&mut self, actor_id: ActorId);
+    fn revoke_approval(&mut self);
+    fn feed(&mut self);
+    fn play(&mut self);
+    fn sleep(&mut self);
+    fn name(&mut self);
+    fn age(&mut self);
 }
 
-impl Tamagotchi {
+impl NFTamagotchi for Tamagotchi {
     fn transfer(&mut self, actor_id: ActorId) {
         let sender = msg::source();
         assert!(

@@ -1,7 +1,7 @@
 #![no_std]
 
 use codec::{Decode, Encode};
-use gmeta::{InOut, Metadata};
+use gmeta::{In, InOut, Metadata};
 use gstd::{prelude::*, ActorId};
 use scale_info::TypeInfo;
 
@@ -45,12 +45,14 @@ pub struct Tamagotchi {
    pub name: String,
    pub date_of_birth: u64,
    pub owner: ActorId,
+
    pub fed: u64,
    pub fed_block: u64,
    pub entertained: u64,
    pub entertained_block: u64,
    pub rested: u64,
    pub rested_block: u64,
+   
    pub allowed_account: Option<ActorId>,
 }
 
