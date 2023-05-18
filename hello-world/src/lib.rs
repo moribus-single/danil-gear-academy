@@ -24,7 +24,7 @@ impl Tamagotchi {
     fn transfer(&mut self, actor_id: ActorId) {
         let sender = msg::source();
         assert!(
-            sender == self.owner || sender == self.allowed_account.unwrap_or_default(),
+            sender == self.owner || self.allowed_account == Some(sender),
             "Only owner or allowed account can transfer ownership"
         );
         self.owner = actor_id;
