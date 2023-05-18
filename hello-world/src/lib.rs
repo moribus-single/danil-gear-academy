@@ -60,8 +60,8 @@ impl Tamagotchi {
         assert!(self.fed < 7000, "Tamagotchi not enough hungry");
 
         // calculating and normalizing hunger level
-        let hunger_level: u64 = (block_height() as u64 - self.fed_block) * HUNGER_PER_BLOCK;
-        let normalized_hunger_level: u64 = if hunger_level > MAX_FED {
+        let hunger_level = (block_height() as u64 - self.fed_block) * HUNGER_PER_BLOCK;
+        let normalized_hunger_level = if hunger_level > MAX_FED {
             MAX_FED
         } else {
             hunger_level as u64
