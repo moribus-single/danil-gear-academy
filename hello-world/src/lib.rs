@@ -64,7 +64,7 @@ impl Tamagotchi {
         let normalized_hunger_level = if hunger_level > MAX_FED {
             MAX_FED
         } else {
-            hunger_level as u64
+            hunger_level
         };
         
         // calculating current hunger level
