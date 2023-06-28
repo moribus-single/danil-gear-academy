@@ -6,14 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], branch = "academy-v0.1.0" }
-parity-scale-codec = { version = "3", default-features = false }
+gstd = { git = "https://github.com/gear-tech/gear.git", rev = "78dfa07" }
 scale-info = { version = "2", default-features = false }
+parity-scale-codec = { version = "3", default-features = false }
+ft-main-io = { git = "https://github.com/gear-dapps/sharded-fungible-token.git", tag = "2.1.2" }
+store-io = { git = "https://github.com/gear-dapps/smart-contract-academy.git"  }
 hello-world-io = { path = "hello-world-io" }
+async-trait = "0.1.68"
 
 [build-dependencies]
-gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", branch = "academy-v0.1.0" }
+gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", branch = "academy" }
 hello-world-io = { path = "hello-world-io" }
 
 [dev-dependencies]
-gtest = { git = "https://github.com/gear-tech/gear.git", branch = "academy-v0.1.0" }
+gtest = { git = "https://github.com/gear-tech/gear.git", branch = "academy" }

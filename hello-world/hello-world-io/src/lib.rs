@@ -1,9 +1,11 @@
 #![no_std]
-
 use codec::{Decode, Encode};
 use gmeta::{In, InOut, Metadata};
 use gstd::{prelude::*, ActorId};
 use scale_info::TypeInfo;
+
+pub type AttributeId = u32;
+pub type TransactionId = u64;
 
 pub struct ProgramMetadata;
 
@@ -26,6 +28,15 @@ pub enum TmgAction {
    Transfer(ActorId),
    Approve(ActorId),
    RevokeApproval,
+   SetFTokenContract(ActorId),
+   ApproveTokens {
+      account: ActorId,
+      amount: u128,
+   },
+   BuyAttribute {
+     store_id: ActorId,
+     attribute_id: AttributeId,
+   },
 }
 
 #[derive(Encode, Decode, TypeInfo)]
@@ -38,6 +49,12 @@ pub enum TmgEvent {
    Transfer(ActorId),
    Approve(ActorId),
    RevokeApproval,
+   ApproveTokens { account: ActorId, amount: u128 },
+   ApprovalError,
+   SetFTokenContract,
+   AttributeBought(AttributeId),
+   CompletePrevPurchase(AttributeId),
+   ErrorDuringPurchase,
 }
 
 #[derive(Default, Encode, Decode, TypeInfo)]
@@ -54,6 +71,8 @@ pub struct Tamagotchi {
    pub rested_block: u64,
    
    pub allowed_account: Option<ActorId>,
+   pub transaction_id: TransactionId,
+   pub ft_contract_id: ActorId,
 }
 
 pub const HUNGER_PER_BLOCK: u64 = 1;

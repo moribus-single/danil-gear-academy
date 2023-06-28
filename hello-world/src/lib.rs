@@ -1,20 +1,33 @@
 #![no_std]
+use async_trait::async_trait;
 use gstd::{ActorId, msg, prelude::*, exec::{block_timestamp, block_height}};
+use ft_main_io::{FTokenAction, FTokenEvent, LogicAction};
+use store_io::{StoreAction, StoreEvent};
 use hello_world_io::*;
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
 
-pub trait NFTamagotchi {
+#[async_trait]
+trait NFTamagotchi {
     fn transfer(&mut self, actor_id: ActorId);
     fn approve(&mut self, actor_id: ActorId);
     fn revoke_approval(&mut self);
+    async fn approve_tokens(&mut self, account: &ActorId, amount: u128);
+    async fn buy_attribute(
+        &mut self, 
+        store_id: &ActorId, 
+        attribute_id: AttributeId
+    );
+    fn set_ft_contract(&mut self, actor_id: &ActorId);
     fn feed(&mut self);
     fn play(&mut self);
     fn sleep(&mut self);
     fn name(&mut self);
     fn age(&mut self);
+    fn assert_admin(&mut self);
 }
 
+#[async_trait]
 impl NFTamagotchi for Tamagotchi {
     fn transfer(&mut self, actor_id: ActorId) {
         let sender = msg::source();
@@ -31,7 +44,7 @@ impl NFTamagotchi for Tamagotchi {
     }
 
     fn approve(&mut self, actor_id: ActorId) {
-        assert!(msg::source() == self.owner, "Only owner can approve");
+        self.assert_admin();
         self.allowed_account = Some(actor_id);
 
         msg::reply(
@@ -41,11 +54,98 @@ impl NFTamagotchi for Tamagotchi {
     }
 
     fn revoke_approval(&mut self) {
-        assert!(msg::source() == self.owner, "Only owner can revoke approval");
+        self.assert_admin();
         self.allowed_account = None;
 
         msg::reply(
             TmgEvent::RevokeApproval,
+            0
+        ).expect("Failed to share the TmgEvent");
+    }
+
+    async fn approve_tokens(&mut self, account: &ActorId, amount: u128) {
+        self.assert_admin();
+        
+        let result = msg::send_for_reply_as::<_, FTokenEvent>(
+            self.ft_contract_id,
+            FTokenAction::Message {
+                transaction_id: self.transaction_id,
+                payload: LogicAction::Approve {
+                    approved_account: *account,
+                    amount,
+                },
+            },
+            0,
+        )
+        .expect("Error in sending a message `FTokenAction::Message`")
+        .await;
+        
+        match result {
+            Ok(FTokenEvent::Ok) => {
+                let _ = self.transaction_id.wrapping_add(1);
+                msg::reply(
+                    TmgEvent::ApproveTokens{account: *account, amount},
+                    0
+                ).expect("Failed to share the TmgEvent");
+            },
+            _ => {
+                msg::reply(
+                    TmgEvent::ApprovalError,
+                    0
+                ).expect("Failed to share TmgEvent");
+            },
+        }
+    }
+    
+    async fn buy_attribute(
+        &mut self, 
+        store_id: &ActorId, 
+        attribute_id: AttributeId
+    ) {
+        self.assert_admin();
+    
+        let result = msg::send_for_reply_as::<_, StoreEvent>(
+            *store_id,
+            StoreAction::BuyAttribute {
+                attribute_id
+            },
+            0
+        )
+        .expect("Error in sending a message `StoreAction::BuyAttribute`")
+        .await;
+
+        match result {
+            Ok(StoreEvent::CompletePrevTx{attribute_id}) => {
+                msg::reply(
+                    TmgEvent::CompletePrevPurchase(attribute_id),
+                    0
+                ).expect("Failed to share TmgEvent");
+            },
+            Ok(StoreEvent::AttributeSold{success: true}) => {
+                msg::reply(
+                    TmgEvent::AttributeBought(attribute_id),
+                    0
+                ).expect("Failed to share TmgEvent");
+            },
+            _ => {
+                msg::reply(
+                    TmgEvent::ErrorDuringPurchase,
+                    0
+                ).expect("Failed to share TmgEvent");
+            }
+        }
+    }
+
+    fn set_ft_contract(&mut self, actor_id: &ActorId) {
+        self.assert_admin();
+
+        let tamagotchi = unsafe {
+            TAMAGOTCHI.as_mut().expect("The contract is not initialized")
+        };
+        tamagotchi.ft_contract_id = *actor_id;
+
+        msg::reply(
+            TmgEvent::SetFTokenContract,
             0
         ).expect("Failed to share the TmgEvent");
     }
@@ -150,10 +250,14 @@ impl NFTamagotchi for Tamagotchi {
             0
         ).expect("Failed to share the TmgEvent");
     }
+
+    fn assert_admin(&mut self) {
+        assert_eq!(msg::source(), self.owner, "Only admin can send that message!")
+    }
 }
 
-#[no_mangle]
-extern "C" fn handle() {
+#[gstd::async_main]
+async fn main() {
     // prepairing data
     let tamagotchi = unsafe {
         TAMAGOTCHI.as_mut().expect("The contract is not initialized")
@@ -171,7 +275,16 @@ extern "C" fn handle() {
         TmgAction::Sleep => tamagotchi.sleep(),
         TmgAction::RevokeApproval => tamagotchi.revoke_approval(),
         TmgAction::Approve(actor_id) => tamagotchi.approve(actor_id),
-        TmgAction::Transfer(actor_id) => tamagotchi.transfer(actor_id)
+        TmgAction::Transfer(actor_id) => tamagotchi.transfer(actor_id),
+        TmgAction::ApproveTokens {
+            account, 
+            amount
+        } => tamagotchi.approve_tokens(&account, amount).await,
+        TmgAction::BuyAttribute{
+            store_id,
+            attribute_id,
+        } => tamagotchi.buy_attribute(&store_id, attribute_id).await,
+        TmgAction::SetFTokenContract(actor_id) => tamagotchi.set_ft_contract(&actor_id)
     };
 }
 
@@ -191,6 +304,8 @@ extern "C" fn init() {
     let entertained_block = block_height() as u64;
     let rested_block = block_height() as u64;
     let allowed_account: Option<ActorId> = None;
+    let ft_contract_id: ActorId = ActorId::zero();
+    let transaction_id: u64 = 0;
 
     unsafe { 
         TAMAGOTCHI = Some(Tamagotchi{
@@ -203,7 +318,9 @@ extern "C" fn init() {
             entertained_block,
             rested,
             rested_block,
-            allowed_account
+            allowed_account,
+            ft_contract_id,
+            transaction_id
         });
     };
 
