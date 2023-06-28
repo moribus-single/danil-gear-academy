@@ -1,4 +1,5 @@
 #![no_std]
+use async_trait::async_trait;
 use gstd::{ActorId, msg, prelude::*, exec::{block_timestamp, block_height}};
 use ft_main_io::{FTokenAction, FTokenEvent, LogicAction};
 use store_io::{StoreAction, StoreEvent};
@@ -6,25 +7,28 @@ use hello_world_io::*;
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
 
-#[derive(Default, Encode, Decode, TypeInfo)]
-pub struct Tamagotchi {
-   pub name: String,
-   pub date_of_birth: u64,
-   pub owner: ActorId,
-
-   pub fed: u64,
-   pub fed_block: u64,
-   pub entertained: u64,
-   pub entertained_block: u64,
-   pub rested: u64,
-   pub rested_block: u64,
-   
-   pub allowed_account: Option<ActorId>,
-   pub transaction_id: TransactionId,
-   pub ft_contract_id: ActorId,
+#[async_trait]
+trait NFTamagotchi {
+    fn transfer(&mut self, actor_id: ActorId);
+    fn approve(&mut self, actor_id: ActorId);
+    fn revoke_approval(&mut self);
+    async fn approve_tokens(&mut self, account: &ActorId, amount: u128);
+    async fn buy_attribute(
+        &mut self, 
+        store_id: &ActorId, 
+        attribute_id: AttributeId
+    );
+    fn set_ft_contract(&mut self, actor_id: &ActorId);
+    fn feed(&mut self);
+    fn play(&mut self);
+    fn sleep(&mut self);
+    fn name(&mut self);
+    fn age(&mut self);
+    fn assert_admin(&mut self);
 }
 
-impl  Tamagotchi {
+#[async_trait]
+impl NFTamagotchi for Tamagotchi {
     fn transfer(&mut self, actor_id: ActorId) {
         let sender = msg::source();
         assert!(
