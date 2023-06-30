@@ -1,9 +1,13 @@
 #![no_std]
 use async_trait::async_trait;
-use gstd::{ActorId, msg, prelude::*, exec::{block_timestamp, block_height}};
+use gstd::{ActorId, msg, prelude::*, ReservationId, exec::{block_timestamp, block_height, program_id, system_reserve_gas}};
 use ft_main_io::{FTokenAction, FTokenEvent, LogicAction};
 use store_io::{StoreAction, StoreEvent};
 use hello_world_io::*;
+
+const DELAY: u32 = 120;
+const MIN_ATTRIBUTE: u64 = 400;
+const INIT_ATTRIBUTE: u64 = 300;
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
 
@@ -18,13 +22,18 @@ trait NFTamagotchi {
         store_id: &ActorId, 
         attribute_id: AttributeId
     );
+    fn check_attributes(&mut self);
     fn set_ft_contract(&mut self, actor_id: &ActorId);
     fn feed(&mut self);
+    fn calculate_curr_fed(&mut self) -> u64;
     fn play(&mut self);
+    fn calculate_curr_entertained(&mut self) -> u64;
     fn sleep(&mut self);
+    fn calculate_curr_rest(&mut self) -> u64;
     fn name(&mut self);
     fn age(&mut self);
     fn assert_admin(&mut self);
+    fn reserve_gas(&mut self, reservation_amount: u64, duration: u32);
 }
 
 #[async_trait]
@@ -136,6 +145,45 @@ impl NFTamagotchi for Tamagotchi {
         }
     }
 
+    fn check_attributes(&mut self) {
+        // assert_eq!(msg::source(), program_id(), "Only contract can call this function");
+        
+        let curr_feed_level: u64 = self.calculate_curr_fed();
+        let curr_entertain_level: u64 = self.calculate_curr_entertained();
+        let curr_rest_level: u64 = self.calculate_curr_rest();
+
+        // sending msgs to the owner
+        if curr_feed_level < MIN_ATTRIBUTE {
+            msg::send(
+                self.owner,
+                TmgEvent::FeedMe,
+                0
+            ).expect("Failed to share TmgEvent");
+        }
+        if curr_entertain_level < MIN_ATTRIBUTE {
+            msg::send(
+                self.owner,
+                TmgEvent::PlayWithMe,
+                0
+            ).expect("Failed to share TmgEvent");
+        }
+        if curr_rest_level < MIN_ATTRIBUTE {
+            msg::send(
+                self.owner,
+                TmgEvent::WantToSleep,
+                0
+            ).expect("Failed to share TmgEvent");
+        } 
+
+        // next state check
+        msg::send_delayed(
+            program_id(),
+            TmgAction::CheckState,
+            0,
+            DELAY,
+        ).expect("Error while sending delayed.");
+    }
+
     fn set_ft_contract(&mut self, actor_id: &ActorId) {
         self.assert_admin();
 
@@ -154,20 +202,8 @@ impl NFTamagotchi for Tamagotchi {
         assert!(msg::source() == self.owner, "Only owner can feed the tamagotchi");
         assert!(self.fed < 7000, "Tamagotchi not enough hungry");
 
-        // calculating and normalizing hunger level
-        let hunger_level = (block_height() as u64 - self.fed_block) * HUNGER_PER_BLOCK;
-        let normalized_hunger_level = if hunger_level > MAX_FED {
-            MAX_FED
-        } else {
-            hunger_level
-        };
-        
         // calculating current hunger level
-        let curr_feed_level: u64 = if self.fed > normalized_hunger_level {
-            self.fed - normalized_hunger_level
-        } else {
-            0
-        };
+        let curr_feed_level: u64 = self.calculate_curr_fed();
 
         // updating the state
         self.fed = curr_feed_level + FILL_PER_FEED;
@@ -179,10 +215,43 @@ impl NFTamagotchi for Tamagotchi {
         ).expect("Failed to share TmgEvent");
     }
 
+    fn calculate_curr_fed(&mut self) -> u64 {
+        // calculating and normalizing hunger level
+        let hunger_level = (block_height() as u64 - self.fed_block) * HUNGER_PER_BLOCK;
+        let normalized_hunger_level = if hunger_level > MAX_FED {
+            MAX_FED
+        } else {
+            hunger_level
+        };
+
+        // calculating current hunger level
+        let curr_feed_level: u64 = if self.fed > normalized_hunger_level {
+            self.fed - normalized_hunger_level
+        } else {
+            0
+        };
+
+        return curr_feed_level;
+    }
+
     fn play(&mut self) {
         assert!(msg::source() == self.owner, "Only owner can feed the tamagotchi");
         assert!(self.entertained < 7000, "Tamagotchi entertained enough");
 
+        // calculating current happy level
+        let curr_happy_level = self.calculate_curr_entertained();
+
+        // updating the state
+        self.entertained = curr_happy_level + FILL_PER_ENTERTAINMENT;
+        self.entertained_block = block_height() as u64;
+
+        msg::reply(
+            TmgEvent::Entertained,
+            0
+        ).expect("Failed to share TmgEvent");
+    }
+
+    fn calculate_curr_entertained(&mut self) -> u64 {
         // calculating and normalizing bored level
         let bored_level: u64 = (block_height() as u64 - self.entertained_block) * BOREDOM_PER_BLOCK;
         let normalized_bored_level: u64 = if bored_level > MAX_HAPPY {
@@ -198,20 +267,27 @@ impl NFTamagotchi for Tamagotchi {
             0
         };
 
-        // updating the state
-        self.entertained = curr_happy_level + FILL_PER_ENTERTAINMENT;
-        self.entertained_block = block_height() as u64;
-
-        msg::reply(
-            TmgEvent::Entertained,
-            0
-        ).expect("Failed to share TmgEvent");
+        return curr_happy_level;
     }
 
     fn sleep(&mut self) {
         assert!(msg::source() == self.owner, "Only owner can feed the tamagotchi");
         assert!(self.rested < 7000, "Tamagotchi don't wanna to sleep");
 
+        // calculating current rested level
+        let curr_rested_level = self.calculate_curr_rest();
+
+        // updating the state
+        self.rested = curr_rested_level + FILL_PER_SLEEP;
+        self.rested_block = block_height() as u64;
+
+        msg::reply(
+            TmgEvent::Slept, 
+            0
+        ).expect("Failed to share TmgEvent");
+    }
+
+    fn calculate_curr_rest(&mut self) -> u64 {
         // calculating and normalizing energy loss
         let energy_loss: u64 = (block_height() as u64 - self.rested_block) * ENERGY_PER_BLOCK;
         let normalized_energy_loss: u64 = if energy_loss > MAX_RESTED {
@@ -227,14 +303,7 @@ impl NFTamagotchi for Tamagotchi {
             0
         };
 
-        // updating the state
-        self.rested = curr_rested_level + FILL_PER_SLEEP;
-        self.rested_block = block_height() as u64;
-
-        msg::reply(
-            TmgEvent::Slept, 
-            0
-        ).expect("Failed to share TmgEvent");
+        return curr_rested_level;
     }
 
     fn name(&mut self) {
@@ -253,6 +322,19 @@ impl NFTamagotchi for Tamagotchi {
 
     fn assert_admin(&mut self) {
         assert_eq!(msg::source(), self.owner, "Only admin can send that message!")
+    }
+
+    fn reserve_gas(&mut self, reservation_amount: u64, duration: u32) {
+        let reservation_id = ReservationId::reserve(
+            reservation_amount,
+            duration,
+        ).expect("reservation across executions");
+        self.reservations.push(reservation_id);
+
+        msg::reply(
+            TmgEvent::GasReserved,
+            0
+        ).expect("Failed to share TmgEvent");
     }
 }
 
@@ -279,13 +361,47 @@ async fn main() {
         TmgAction::ApproveTokens {
             account, 
             amount
-        } => tamagotchi.approve_tokens(&account, amount).await,
-        TmgAction::BuyAttribute{
+        } => {
+            reserve_gas();
+            tamagotchi.approve_tokens(&account, amount).await;
+        },
+        TmgAction::BuyAttribute {
             store_id,
             attribute_id,
-        } => tamagotchi.buy_attribute(&store_id, attribute_id).await,
-        TmgAction::SetFTokenContract(actor_id) => tamagotchi.set_ft_contract(&actor_id)
+        } => {
+            reserve_gas();
+            tamagotchi.buy_attribute(&store_id, attribute_id).await;
+        },
+        TmgAction::SetFTokenContract(actor_id) => tamagotchi.set_ft_contract(&actor_id),
+        TmgAction::CheckState => {
+            reserve_gas();
+            tamagotchi.check_attributes();
+        },
+        TmgAction::ReserveGas {
+            reservation_amount,
+            duration
+        } => tamagotchi.reserve_gas(reservation_amount, duration),
     };
+}
+
+#[no_mangle]
+extern "C" fn my_handle_signal() {
+    let tamagotchi = unsafe {
+        TAMAGOTCHI.get_or_insert(Default::default())
+    };
+
+    let reservation_id = if !tamagotchi.reservations.is_empty() {
+        tamagotchi.reservations.remove(0)
+    } else {
+        return;
+    };
+
+    msg::send_from_reservation(
+        reservation_id,
+        tamagotchi.owner,
+        TmgEvent::MakeReservation,
+        0
+    ).expect("Failed to share TmgEvent");
 }
 
 #[no_mangle]
@@ -296,9 +412,9 @@ extern "C" fn init() {
     ).expect("Can't decode tamagotchi name");
     let date_of_birth = block_timestamp();
 
-    let fed = 500;
-    let entertained = 500; 
-    let rested = 500;
+    let fed = INIT_ATTRIBUTE;
+    let entertained = INIT_ATTRIBUTE; 
+    let rested = INIT_ATTRIBUTE;
 
     let fed_block = block_height() as u64;
     let entertained_block = block_height() as u64;
@@ -306,6 +422,7 @@ extern "C" fn init() {
     let allowed_account: Option<ActorId> = None;
     let ft_contract_id: ActorId = ActorId::zero();
     let transaction_id: u64 = 0;
+    let reservations: Vec<ReservationId> = Vec::new();
 
     unsafe { 
         TAMAGOTCHI = Some(Tamagotchi{
@@ -320,7 +437,8 @@ extern "C" fn init() {
             rested_block,
             allowed_account,
             ft_contract_id,
-            transaction_id
+            transaction_id,
+            reservations,
         });
     };
 
@@ -343,4 +461,8 @@ extern "C" fn state() {
 extern "C" fn metahash() {
    let metahash: [u8; 32] = include!("../.metahash");
    msg::reply(metahash, 0).expect("Failed to share metahash");
+}
+
+fn reserve_gas() {
+    system_reserve_gas(1_000_000_000).expect("Error during system gas reservation");
 }
