@@ -1,13 +1,13 @@
 #![no_std]
 use async_trait::async_trait;
-use gstd::{ActorId, msg, prelude::*, ReservationId, exec::{block_timestamp, block_height, program_id, system_reserve_gas}};
+use gstd::{ActorId, msg, prelude::*, ReservationId, exec};
 use ft_main_io::{FTokenAction, FTokenEvent, LogicAction};
 use store_io::{StoreAction, StoreEvent};
 use hello_world_io::*;
 
 const DELAY: u32 = 120;
 const MIN_ATTRIBUTE: u64 = 400;
-const INIT_ATTRIBUTE: u64 = 300;
+const INIT_ATTRIBUTE: u64 = 500;
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
 
@@ -177,7 +177,7 @@ impl NFTamagotchi for Tamagotchi {
 
         // next state check
         msg::send_delayed(
-            program_id(),
+            exec::program_id(),
             TmgAction::CheckState,
             0,
             DELAY,
@@ -207,7 +207,7 @@ impl NFTamagotchi for Tamagotchi {
 
         // updating the state
         self.fed = curr_feed_level + FILL_PER_FEED;
-        self.fed_block = block_height() as u64;
+        self.fed_block = exec::block_height() as u64;
 
         msg::reply(
             TmgEvent::Fed,
@@ -217,7 +217,7 @@ impl NFTamagotchi for Tamagotchi {
 
     fn calculate_curr_fed(&mut self) -> u64 {
         // calculating and normalizing hunger level
-        let hunger_level = (block_height() as u64 - self.fed_block) * HUNGER_PER_BLOCK;
+        let hunger_level = (exec::block_height() as u64 - self.fed_block) * HUNGER_PER_BLOCK;
         let normalized_hunger_level = if hunger_level > MAX_FED {
             MAX_FED
         } else {
@@ -243,7 +243,7 @@ impl NFTamagotchi for Tamagotchi {
 
         // updating the state
         self.entertained = curr_happy_level + FILL_PER_ENTERTAINMENT;
-        self.entertained_block = block_height() as u64;
+        self.entertained_block = exec::block_height() as u64;
 
         msg::reply(
             TmgEvent::Entertained,
@@ -253,7 +253,7 @@ impl NFTamagotchi for Tamagotchi {
 
     fn calculate_curr_entertained(&mut self) -> u64 {
         // calculating and normalizing bored level
-        let bored_level: u64 = (block_height() as u64 - self.entertained_block) * BOREDOM_PER_BLOCK;
+        let bored_level: u64 = (exec::block_height() as u64 - self.entertained_block) * BOREDOM_PER_BLOCK;
         let normalized_bored_level: u64 = if bored_level > MAX_HAPPY {
             MAX_HAPPY
         } else {
@@ -279,7 +279,7 @@ impl NFTamagotchi for Tamagotchi {
 
         // updating the state
         self.rested = curr_rested_level + FILL_PER_SLEEP;
-        self.rested_block = block_height() as u64;
+        self.rested_block = exec::block_height() as u64;
 
         msg::reply(
             TmgEvent::Slept, 
@@ -289,7 +289,7 @@ impl NFTamagotchi for Tamagotchi {
 
     fn calculate_curr_rest(&mut self) -> u64 {
         // calculating and normalizing energy loss
-        let energy_loss: u64 = (block_height() as u64 - self.rested_block) * ENERGY_PER_BLOCK;
+        let energy_loss: u64 = (exec::block_height() as u64 - self.rested_block) * ENERGY_PER_BLOCK;
         let normalized_energy_loss: u64 = if energy_loss > MAX_RESTED {
             MAX_RESTED
         } else {
@@ -315,7 +315,7 @@ impl NFTamagotchi for Tamagotchi {
 
     fn age(&mut self) {
         msg::reply(
-            TmgEvent::Age(block_timestamp() - self.date_of_birth),
+            TmgEvent::Age(exec::block_timestamp() - self.date_of_birth),
             0
         ).expect("Failed to share the TmgEvent");
     }
@@ -410,15 +410,15 @@ extern "C" fn init() {
     let name: String = String::from_utf8(
         msg::load_bytes().expect("Can't load tamagotchi name")
     ).expect("Can't decode tamagotchi name");
-    let date_of_birth = block_timestamp();
+    let date_of_birth = exec::block_timestamp();
 
     let fed = INIT_ATTRIBUTE;
     let entertained = INIT_ATTRIBUTE; 
     let rested = INIT_ATTRIBUTE;
 
-    let fed_block = block_height() as u64;
-    let entertained_block = block_height() as u64;
-    let rested_block = block_height() as u64;
+    let fed_block = exec::block_height() as u64;
+    let entertained_block = exec::block_height() as u64;
+    let rested_block = exec::block_height() as u64;
     let allowed_account: Option<ActorId> = None;
     let ft_contract_id: ActorId = ActorId::zero();
     let transaction_id: u64 = 0;
@@ -464,5 +464,5 @@ extern "C" fn metahash() {
 }
 
 fn reserve_gas() {
-    system_reserve_gas(1_000_000_000).expect("Error during system gas reservation");
+    exec::system_reserve_gas(1_000_000_000).expect("Error during system gas reservation");
 }
