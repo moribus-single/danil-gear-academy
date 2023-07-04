@@ -1,0 +1,16 @@
+[package]
+name = "escrow"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gstd = { git = "https://github.com/gear-tech/gear.git", rev = "78dfa07", feature = "debug" }
+parity-scale-codec = { version = "3", default-features = false }
+scale-info = { version = "2", default-features = false }
+escrow-io = { path = "io" }
+
+[build-dependencies]
+gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", branch = "academy" }
+
+[dev-dependencies]
+gtest = { git = "https://github.com/gear-tech/gear.git", branch = "academy" }
