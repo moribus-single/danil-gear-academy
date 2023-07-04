@@ -1,4 +1,4 @@
-use gtest::{Program, System, Log};
+use gtest::{Program, System};
 use tamagotchi_io::*;
 
 const PROGRAM_ID: u64 = 1;
@@ -8,6 +8,7 @@ const BUYER_2: u64 = 102;
 
 fn init_tmg_army(sys: &System) {
     let tmg_code_id = sys.submit_code("./hello-world/target/wasm32-unknown-unknown/debug/hello_world.opt.wasm");
+    println!("tmg_code_id = {}", tmg_code_id);
     let tmg_factory = Program::current(&sys);
     let res = tmg_factory.send(OWNER, tmg_code_id);
 

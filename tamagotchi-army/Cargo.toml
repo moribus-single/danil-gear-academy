@@ -15,6 +15,7 @@ tamagotchi-io = { path = "io" }
 
 [build-dependencies]
 gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", branch = "academy" }
+tamagotchi-io = { path = "io" }
 
 [dev-dependencies]
 gtest = { git = "https://github.com/gear-tech/gear.git", branch = "academy" }
