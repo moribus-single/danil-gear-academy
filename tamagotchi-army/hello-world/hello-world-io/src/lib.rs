@@ -1,7 +1,7 @@
 #![no_std]
 use codec::{Decode, Encode};
 use gmeta::{In, InOut, Metadata};
-use gstd::{prelude::*, ActorId, ReservationId, CodeId};
+use gstd::{prelude::*, ActorId, ReservationId};
 use scale_info::TypeInfo;
 
 pub type AttributeId = u32;
