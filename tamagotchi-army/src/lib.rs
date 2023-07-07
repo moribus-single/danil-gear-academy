@@ -1,7 +1,7 @@
 #![no_std]
 use gstd::{msg, prelude::*, prog::ProgramGenerator, ActorId, CodeId};
 use async_trait::async_trait;
-use tamagotchi_io::*;
+use tmg_army_io::*;
 use hello_world_io::*;
 
 pub const GAS_FOR_CREATION: u64 = 2_500_000_000;

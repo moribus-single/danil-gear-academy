@@ -1,5 +1,5 @@
 use gtest::{Program, System};
-use tamagotchi_io::*;
+use tmg_army_io::*;
 
 const PROGRAM_ID: u64 = 1;
 const OWNER: u64 = 100;

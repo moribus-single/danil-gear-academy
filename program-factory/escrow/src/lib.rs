@@ -5,17 +5,11 @@ use gstd::{msg, prelude::*, ActorId};
 
 static mut ESCROW: Option<Escrow> = None;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Default, Debug, PartialEq, Eq)]
 enum EscrowState {
     AwaitingPayment,
     AwaitingDelivery,
     Closed,
-}
-
-impl Default for EscrowState {
-    fn default() -> Self {
-        Self::AwaitingPayment
-    }
 }
 
 #[derive(Default)]
